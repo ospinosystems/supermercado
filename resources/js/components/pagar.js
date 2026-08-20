@@ -189,21 +189,36 @@ const setPagoInBs = callback => {
     callback((bs/dolar).toFixed(2))
   }
 }
+// Cualquier valor vacio, no numerico o una tasa sin cargar daba NaN.
+const num = (v) => {
+  let n = parseFloat(v)
+  return isNaN(n) ? 0 : n
+}
+// Convierte a dolares sin dividir entre cero ni entre NaN.
+const aDolar = (monto, tasa) => {
+  let t = num(tasa)
+  return t ? num(monto) / t : 0
+}
 const sumRecibido = () => {
-  let vuel_dolar = parseFloat(recibido_dolar?recibido_dolar:0)
-  let vuel_bs = parseFloat(recibido_bs?recibido_bs:0) / parseFloat(dolar)
-  let vuel_cop = parseFloat(recibido_cop?recibido_cop:0) / parseFloat(peso)
+  let vuel_dolar = num(recibido_dolar)
+  let vuel_bs = aDolar(recibido_bs, dolar)
+  let vuel_cop = aDolar(recibido_cop, peso)
 
-  let t =  (vuel_dolar + vuel_bs + vuel_cop)
-  let cambio_dolar = t-pedidoData.clean_total 
-  setrecibido_tot((t).toFixed(2)) 
-  setcambio_dolar(cambio_dolar.toFixed(2))
+  let t = vuel_dolar + vuel_bs + vuel_cop
+  let total = num(pedidoData ? pedidoData.clean_total : 0)
+
+  setrecibido_tot(t.toFixed(2))
+
+  // Sin nada recibido no hay vuelto que calcular: antes salia -total.
+  let cambio = t > 0 ? t - total : 0
+
+  setcambio_dolar(cambio ? cambio.toFixed(2) : "")
   setcambio_bs("")
   setcambio_cop("")
-  setcambio_tot_result(cambio_dolar.toFixed(2)) 
+  setcambio_tot_result(cambio ? cambio.toFixed(2) : "")
 }
 const setVueltobs = () => {
-  setcambio_bs((cambio_tot_result*dolar).toFixed(2))
+  setcambio_bs((num(cambio_tot_result)*num(dolar)).toFixed(2))
   setcambio_dolar("")
   setcambio_cop("")
 }
@@ -215,7 +230,7 @@ const setVueltodolar = () => {
 const setVueltocop = () => {
   setcambio_bs("")
   setcambio_dolar("")
-  setcambio_cop((cambio_tot_result*peso).toFixed(2))
+  setcambio_cop((num(cambio_tot_result)*num(peso)).toFixed(2))
 }
 const syncCambio = (val,type) => {
   val = number(val)
@@ -226,12 +241,12 @@ const syncCambio = (val,type) => {
   }
   else if (type=="Bolivares") {
     setcambio_bs(val) 
-    valC = parseFloat(val?val:0) / parseFloat(dolar)
+    valC = aDolar(val, dolar)
 
   }
   else if (type=="Pesos") {
     setcambio_cop(val)
-    valC = parseFloat(val?val:0) / parseFloat(peso)
+    valC = aDolar(val, peso)
   }
   
 
@@ -251,19 +266,19 @@ const syncCambio = (val,type) => {
   })
   let cambio_tot_resultvalC = 0
   if (cambio_bs&&cambio_dolar&&type=="Pesos") {
-    let bs = parseFloat(cambio_bs) / parseFloat(dolar)
-    setcambio_dolar((cambio_tot_result-bs-valC).toFixed(2))
+    let bs = aDolar(cambio_bs, dolar)
+    setcambio_dolar((num(cambio_tot_result)-bs-num(valC)).toFixed(2))
   }else{
     inputs.map(e => {
       if (e.key!=type) {
         if (e.val) {
-          cambio_tot_resultvalC = (cambio_tot_result-valC)/divisor
+          cambio_tot_resultvalC = divisor ? (num(cambio_tot_result)-num(valC))/divisor : 0
           if (e.key=="Dolar") {
             e.set((cambio_tot_resultvalC).toFixed(2))
           }else if (e.key=="Bolivares") {
-            e.set((cambio_tot_resultvalC*dolar).toFixed(2))
+            e.set((cambio_tot_resultvalC*num(dolar)).toFixed(2))
           }else if (e.key=="Pesos") {
-            e.set((cambio_tot_resultvalC*peso).toFixed(2))
+            e.set((cambio_tot_resultvalC*num(peso)).toFixed(2))
           }
         }
       }
@@ -274,9 +289,9 @@ const syncCambio = (val,type) => {
   
 }
 const sumCambio = () => {
-  let vuel_dolar = parseFloat(cambio_dolar?cambio_dolar:0)
-  let vuel_bs = parseFloat(cambio_bs?cambio_bs:0) / parseFloat(dolar)
-  let vuel_cop = parseFloat(cambio_cop?cambio_cop:0) / parseFloat(peso)
+  let vuel_dolar = num(cambio_dolar)
+  let vuel_bs = aDolar(cambio_bs, dolar)
+  let vuel_cop = aDolar(cambio_cop, peso)
   return (vuel_dolar + vuel_bs + vuel_cop).toFixed(2)
 }
 const debitoBs = (met) =>{
