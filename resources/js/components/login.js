@@ -60,7 +60,10 @@ class Login extends Component{
 		return(
 			<div className="login">
 
-				
+				<div className="login-logo">
+					<img src={logo} alt="logo" />
+				</div>
+
 				<div className="wrap-login100">
 					<form className="login100-form validate-form" onSubmit={this.submit}>
 
@@ -83,9 +86,8 @@ class Login extends Component{
 						
 					</form>
 				</div>
-				<span className="text-muted mt-4 text-center">
-					Ospino Systems C.A.<br/>
-					<img src={logo} alt="logo ao" height="150px"/>
+				<span className="login-firma text-muted text-center">
+					Ospino Systems C.A.
 				</span>
 			</div>
 		);

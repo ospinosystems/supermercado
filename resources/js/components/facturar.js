@@ -224,6 +224,24 @@ export default function Facturar({ user, notificar, setLoading }) {
     const inputaddcarritointernoref = useRef(null);
 
     const refinputaddcarritofast = useRef(null);
+    const inputnombreclientefastref = useRef(null);
+
+    // Búsqueda principal: hay que poder descartar respuestas que llegan tarde
+    // y conservar el producto resaltado cuando entra una lista nueva.
+    const [buscandoProductos, setbuscandoProductos] = useState(false);
+    const peticionProductosRef = useRef(0);
+    const productosRef = useRef([]);
+    const counterListProductosRef = useRef(0);
+
+    // Recibo (factura fiscal). Cuando está activo, al guardar la factura se
+    // imprime en la máquina fiscal y NO se imprime la nota de entrega.
+    const [imprimirFiscal, setimprimirFiscal] = useState(false);
+
+    // Facturación en espera de que se registre/seleccione el cliente.
+    const [facturarPendienteCliente, setfacturarPendienteCliente] = useState(false);
+    const callbackFacturarRef = useRef(null);
+    const callbackPagoRef = useRef(null);
+    const guardandoClienteFastRef = useRef(false);
 
     const [typingTimeout, setTypingTimeout] = useState(0);
 
@@ -424,6 +442,17 @@ export default function Facturar({ user, notificar, setLoading }) {
             notificar(data.msj)
         })
     }
+    const reportefiscal = (type) => {
+        if (confirm("CONFIRME REPORTE"+type)) {
+            db.reportefiscal({
+                type
+            }).then(({data})=>{
+                notificar(data)
+            })
+        }
+    }
+
+    
 
 
 
@@ -912,17 +941,7 @@ export default function Facturar({ user, notificar, setLoading }) {
                 setView("pedidos");
                 getPedidos();
             } else if (view == "pagar") {
-                setToggleAddPersonaFun(true, () => {
-                    setclienteInpnombre("");
-                    setclienteInptelefono("");
-                    setclienteInpdireccion("");
-
-                    if (inputmodaladdpersonacarritoref) {
-                        if (inputmodaladdpersonacarritoref.current) {
-                            inputmodaladdpersonacarritoref.current.focus();
-                        }
-                    }
-                });
+                abrirModalCliente();
             } else if (
                 view == "inventario" &&
                 subViewInventario == "inventario" &&
@@ -1001,6 +1020,11 @@ export default function Facturar({ user, notificar, setLoading }) {
                         setShowModalMovimientos(false);
                     }
                 } else if (view == "pagar") {
+                    if (toggleAddPersona) {
+                        // Cancelar el modal cancela la facturación que lo abrió.
+                        setfacturarPendienteCliente(false);
+                        callbackFacturarRef.current = null;
+                    }
                     setToggleAddPersona(false);
                     toggleModalProductos(false);
                     setViewCaja(false);
@@ -1136,15 +1160,22 @@ export default function Facturar({ user, notificar, setLoading }) {
                         tbodyproducInterref.current.rows[index].focus();
                     }
                 } else if (toggleAddPersona) {
-                    let index = countListPersoInter + 1;
-                    if (tbodypersoInterref) {
-                        if (tbodypersoInterref.current) {
-                            if (tbodypersoInterref.current.rows) {
-                                if (tbodypersoInterref.current.rows[index]) {
-                                    setCountListPersoInter(index);
-                                    tbodypersoInterref.current.rows[
-                                        index
-                                    ].focus();
+                    if (!personas.length) {
+                        // Sin coincidencias: bajar lleva al formulario de registro.
+                        if (inputnombreclientefastref.current) {
+                            inputnombreclientefastref.current.focus();
+                        }
+                    } else {
+                        let index = countListPersoInter + 1;
+                        if (tbodypersoInterref) {
+                            if (tbodypersoInterref.current) {
+                                if (tbodypersoInterref.current.rows) {
+                                    if (tbodypersoInterref.current.rows[index]) {
+                                        setCountListPersoInter(index);
+                                        tbodypersoInterref.current.rows[
+                                            index
+                                        ].focus();
+                                    }
                                 }
                             }
                         }
@@ -1273,7 +1304,10 @@ export default function Facturar({ user, notificar, setLoading }) {
                         //wait
                     }
                 } else if (toggleAddPersona) {
-                    if (tbodypersoInterref) {
+                    if (!personas.length) {
+                        // Sin coincidencias: Enter registra el cliente nuevo.
+                        setPersonaFast();
+                    } else if (tbodypersoInterref) {
                         if (tbodypersoInterref.current) {
                             if (
                                 tbodypersoInterref.current.rows[
@@ -1985,6 +2019,53 @@ export default function Facturar({ user, notificar, setLoading }) {
             callback();
         }
     };
+    // El cliente 1 ("CF") es el genérico que trae todo pedido nuevo: no cuenta
+    // como cliente registrado.
+    const CLIENTE_GENERICO = 1;
+    const clienteRequerido = (ped) => {
+        if (!ped) {
+            return true;
+        }
+        if (!ped.id_cliente || ped.id_cliente == CLIENTE_GENERICO) {
+            return true;
+        }
+        if (!ped.cliente || !ped.cliente.identificacion) {
+            return true;
+        }
+        return ped.cliente.identificacion == "CF";
+    };
+    const abrirModalCliente = () => {
+        setclienteInpidentificacion("");
+        setclienteInpnombre("");
+        setclienteInptelefono("");
+        setclienteInpdireccion("");
+        setPersona([]);
+        setCountListPersoInter(0);
+        guardandoClienteFastRef.current = false;
+        setToggleAddPersona(true);
+    };
+    const cerrarModalCliente = () => {
+        setfacturarPendienteCliente(false);
+        callbackFacturarRef.current = null;
+        setToggleAddPersona(false);
+    };
+    useEffect(() => {
+        if (toggleAddPersona) {
+            if (inputmodaladdpersonacarritoref.current) {
+                inputmodaladdpersonacarritoref.current.value = "";
+                inputmodaladdpersonacarritoref.current.focus();
+            }
+            getPersona("");
+        }
+    }, [toggleAddPersona]);
+    // Cada vez que cambian las sugerencias, Enter debe tomar la primera.
+    useEffect(() => {
+        setCountListPersoInter(0);
+    }, [personas]);
+    // El recibo se activa por pedido: cambiar de pedido lo desactiva.
+    useEffect(() => {
+        setimprimirFiscal(false);
+    }, [pedidoData.id]);
     const getMovimientos = (val = "") => {
         setLoading(true);
         db.getMovimientos({ val, fechaMovimientos }).then((res) => {
@@ -2208,7 +2289,42 @@ export default function Facturar({ user, notificar, setLoading }) {
             callback();
         }
     };
-    const toggleImprimirTicket = (id_fake = null) => {
+    // Factura fiscal: sale sola al guardar la factura, sin preguntar nada, con
+    // los datos del cliente ya registrado en el pedido.
+    const imprimirFacturaFiscal = (pedido) => {
+        if (!pedido || !pedido.id) {
+            return;
+        }
+        if (!pedido.cliente || !pedido.cliente.identificacion) {
+            alert("¡Debe registrar el cliente para emitir la factura fiscal!");
+            return;
+        }
+        setLoading(true);
+        db.imprimirTicked({
+            id: pedido.id,
+            identificacion: pedido.cliente.identificacion,
+            nombres: pedido.cliente.nombre,
+            moneda: "bs",
+            printer: 0,
+            fiscal: "si",
+            presupuestocarrito,
+        }).then((res) => {
+            setLoading(false);
+            // La máquina fiscal responde con el texto crudo de Retorno.txt.
+            let msj = "Factura fiscal enviada...";
+            if (typeof res.data === "string" && res.data.trim()) {
+                msj = res.data;
+            } else if (res.data && res.data.msj) {
+                msj = res.data.msj;
+            }
+            notificar(msj);
+        });
+    };
+    const toggleImprimirTicket = (id_fake = null, fiscal = "no", pedidoFiscal = null) => {
+        if (fiscal == "si") {
+            imprimirFacturaFiscal(pedidoFiscal ? pedidoFiscal : pedidoData);
+            return;
+        }
         if (pedidoData) {
             let printer = 0;
             let printdefault = 1
@@ -2253,6 +2369,7 @@ export default function Facturar({ user, notificar, setLoading }) {
                         nombres,
                         moneda,
                         printer,
+                        fiscal,
                         presupuestocarrito
                     }).then((res) => {
                         notificar(res.data.msj);
@@ -2309,9 +2426,13 @@ export default function Facturar({ user, notificar, setLoading }) {
         }, 150);
         setTypingTimeout(time);
     };
+    useEffect(() => { productosRef.current = productos; }, [productos]);
+    useEffect(() => { counterListProductosRef.current = counterListProductos; }, [counterListProductos]);
+
     const getProductos = (valmain = null) => {
         setpermisoExecuteEnter(false);
         setLoading(true);
+        setbuscandoProductos(true);
 
         if (time != 0) {
             clearTimeout(typingTimeout);
@@ -2324,6 +2445,7 @@ export default function Facturar({ user, notificar, setLoading }) {
         }
 
         let time = window.setTimeout(() => {
+            const idPeticion = ++peticionProductosRef.current;
             db.getinventario({
                 vendedor: showMisPedido ? [user.id_usuario] : [],
                 num,
@@ -2332,19 +2454,35 @@ export default function Facturar({ user, notificar, setLoading }) {
                 orderColumn,
                 orderBy,
             }).then((res) => {
+                // Una respuesta vieja no puede pisar a una más nueva.
+                if (idPeticion !== peticionProductosRef.current) {
+                    return;
+                }
                 if (res.data) {
                     if (res.data.estado===false) {
                         notificar(res.data.msj,false)
                     }
                     let len = res.data.length;
-                    if (len) {
-                        setProductos(res.data);
+                    let lista = len ? res.data : [];
+
+                    // El resaltado se sigue por id, no por posición: si el
+                    // producto que el cajero venía marcando sigue en la lista
+                    // nueva, se queda marcado en vez de saltar al primero.
+                    let anterior = productosRef.current[counterListProductosRef.current];
+                    let indice = 0;
+                    if (anterior && anterior.id != null) {
+                        let encontrado = lista.findIndex((p) => p.id === anterior.id);
+                        if (encontrado >= 0) {
+                            indice = encontrado;
+                        }
                     }
-                    if (!len) {
-                        setProductos([]);
+                    if (indice >= lista.length) {
+                        indice = 0;
                     }
-                    if (!res.data[counterListProductos]) {
-                        setCounterListProductos(0);
+
+                    setProductos(lista);
+                    if (indice !== counterListProductosRef.current) {
+                        setCounterListProductos(indice);
                         setCountListInter(0);
                     }
 
@@ -2367,6 +2505,12 @@ export default function Facturar({ user, notificar, setLoading }) {
                     }
                 }
                 setLoading(false);
+                setbuscandoProductos(false);
+            }).catch(() => {
+                if (idPeticion === peticionProductosRef.current) {
+                    setLoading(false);
+                    setbuscandoProductos(false);
+                }
             });
             setpermisoExecuteEnter(true);
         }, 150);
@@ -2651,7 +2795,19 @@ export default function Facturar({ user, notificar, setLoading }) {
     };
 
     const setPersonaFast = (e) => {
-        e.preventDefault();
+        if (e && e.preventDefault) {
+            e.preventDefault();
+        }
+        if (!clienteInpidentificacion || !clienteInpnombre) {
+            notificar("Error: indique C.I./RIF y nombre del cliente.");
+            return;
+        }
+        // Evita el doble registro cuando Enter dispara el atajo y el botón.
+        if (guardandoClienteFastRef.current) {
+            return;
+        }
+        guardandoClienteFastRef.current = true;
+        setLoading(true);
         db.setClienteCrud({
             id: null,
             clienteInpidentificacion,
@@ -2659,6 +2815,7 @@ export default function Facturar({ user, notificar, setLoading }) {
             clienteInpdireccion,
             clienteInptelefono,
         }).then((res) => {
+            guardandoClienteFastRef.current = false;
             notificar(res);
             if (res.data) {
                 if (res.data.estado) {
@@ -2668,6 +2825,10 @@ export default function Facturar({ user, notificar, setLoading }) {
                 }
             }
             setLoading(false);
+        }).catch((err) => {
+            guardandoClienteFastRef.current = false;
+            setLoading(false);
+            notificar("Error al guardar el cliente: " + err);
         });
     };
     const printCreditos = () => {
@@ -2706,6 +2867,10 @@ export default function Facturar({ user, notificar, setLoading }) {
     };
     const getPedido = (id, callback = null, clearPagosPedido = true) => {
         setLoading(true);
+        if (clearPagosPedido) {
+            // Carga limpia de pedido: no debe arrastrar una impresión pendiente.
+            callbackPagoRef.current = null;
+        }
         if (!id) {
             id = pedidoSelect;
         } else {
@@ -3100,13 +3265,25 @@ export default function Facturar({ user, notificar, setLoading }) {
                 numero_factura: pedidoData.id,
                 id_cliente,
             }).then((res) => {
-                getPedido();
+                // clearPagosPedido=false: el cliente puede asignarse en medio
+                // del cobro y no se deben borrar los montos ya tecleados.
+                getPedido(null, null, false);
                 setToggleAddPersona(false);
                 setLoading(false);
                 notificar(res);
             });
         }
     };
+    // Si la facturación quedó en espera del cliente, continúa sola en cuanto
+    // el pedido ya trae un cliente registrado.
+    useEffect(() => {
+        if (facturarPendienteCliente && !clienteRequerido(pedidoData)) {
+            setfacturarPendienteCliente(false);
+            let callback = callbackFacturarRef.current;
+            callbackFacturarRef.current = null;
+            facturar_pedido(callback);
+        }
+    }, [facturarPendienteCliente, pedidoData]);
     const facturar_e_imprimir = () => {
         
         facturar_pedido(()=>{
@@ -3114,6 +3291,12 @@ export default function Facturar({ user, notificar, setLoading }) {
         });
     };
     const setPagoPedido = (callback=null) => {
+        // "Procesar pedido" del modal de crédito lo llama como onClick, así que
+        // lo que llega puede ser un evento y no un callback.
+        if (typeof callback !== "function") {
+            callback = callbackPagoRef.current;
+        }
+        callbackPagoRef.current = null;
         if (transferencia && !refPago.filter((e) => e.tipo == 1).length) {
             alert(
                 "Error: Debe cargar referencia de transferencia electrónica."
@@ -3143,6 +3326,7 @@ export default function Facturar({ user, notificar, setLoading }) {
 
                     setSelectItem(null);
                     setviewconfigcredito(false);
+                    setimprimirFiscal(false);
 
                     if (callback) {callback()}
                 }
@@ -3167,8 +3351,29 @@ export default function Facturar({ user, notificar, setLoading }) {
         }
     };
     const facturar_pedido = (callback=null) => {
+        // Los botones lo usan como onClick, así que puede llegar un evento.
+        if (typeof callback !== "function") {
+            callback = null;
+        }
         if (refinputaddcarritofast.current !== document.activeElement) {
             if (pedidoData.id) {
+                if (clienteRequerido(pedidoData)) {
+                    callbackFacturarRef.current = callback;
+                    setfacturarPendienteCliente(true);
+                    abrirModalCliente();
+                    return;
+                }
+                // O sale la factura fiscal (recibo) o sale la nota de entrega,
+                // nunca las dos.
+                if (imprimirFiscal) {
+                    let pedidoFiscal = pedidoData;
+                    callback = () => {
+                        toggleImprimirTicket(null, "si", pedidoFiscal);
+                    };
+                }
+                // El cobro a crédito abre su propio modal y termina llamando a
+                // setPagoPedido() sin argumentos, por eso el callback va al ref.
+                callbackPagoRef.current = callback;
                 if (credito) {
                     db.checkDeuda({ id_cliente: pedidoData.id_cliente }).then(
                         (res) => {
@@ -4987,6 +5192,11 @@ export default function Facturar({ user, notificar, setLoading }) {
                                     onChange={(e) => getProductos(e.target.value)}
                                 />
                                 {/*<button onClick={()=>setshowinputaddCarritoFast(!showinputaddCarritoFast)} className={("btn btn-outline-")+(showinputaddCarritoFast?"success":"sinapsis")}>Agg. rápido</button>*/}
+                                {buscandoProductos?
+                                    <span className="input-group-text spinner-busqueda" title="Buscando productos...">
+                                        <i className="fa fa-spinner fa-spin"></i> Buscando
+                                    </span>
+                                :null}
 
                                 {showOptionQMain ? (
                                     <>
@@ -5025,6 +5235,7 @@ export default function Facturar({ user, notificar, setLoading }) {
                                 )}
                             </div>
                             <ProductosList
+                                buscandoProductos={buscandoProductos}
                                 moneda={moneda}
                                 auth={auth}
                                 productos={productos}
@@ -5038,7 +5249,7 @@ export default function Facturar({ user, notificar, setLoading }) {
                                 focusCtMain={focusCtMain}
                                 selectProductoFast={selectProductoFast}
                             />
-                            {productos.length == 0 ? (
+                            {productos.length == 0 && !buscandoProductos ? (
                                 <div className="text-center p-2">
                                     <small className="mr-2">Nada para mostrar...</small>
                                 </div>
@@ -5491,6 +5702,7 @@ export default function Facturar({ user, notificar, setLoading }) {
 
             {view == "inventario" ? (
                 <Inventario
+                    reportefiscal={reportefiscal}
                     saveReplaceProducto={saveReplaceProducto}
                     selectRepleceProducto={selectRepleceProducto}
                     replaceProducto={replaceProducto}
@@ -5791,6 +6003,12 @@ export default function Facturar({ user, notificar, setLoading }) {
                     toggleModalProductos={toggleModalProductos}
                     toggleAddPersona={toggleAddPersona}
                     setToggleAddPersona={setToggleAddPersona}
+                    abrirModalCliente={abrirModalCliente}
+                    cerrarModalCliente={cerrarModalCliente}
+                    clienteRequerido={clienteRequerido(pedidoData)}
+                    inputnombreclientefastref={inputnombreclientefastref}
+                    imprimirFiscal={imprimirFiscal}
+                    setimprimirFiscal={setimprimirFiscal}
                     personas={personas}
                     getPersona={getPersona}
                     setPersonas={setPersonas}

@@ -23,100 +23,61 @@ function Header({
   isCierre,
   getPermisoCierre,
 }) {
-  
-    return (
-    <header className="mb-3">
-      <div className="container-fluid">
-        <div className="row">
-          <div className="col-5 d-flex align-items-center">
-          <span className="fst-weight-bold h2">{user.sucursal}</span>
-            
-          </div>
-          <div className="col">
-            <div className="d-flex header-justify-content-end flex-wrap align-items-center">
-              <div className="p-3">
-                <img src={logo} alt="sinapsis" className="logo" />
-              </div>
-              <div className="p-3">
-                <img src={carrito} alt="sinapsis" width="50px" className="pointer carrito-icon" onClick={
-                  ()=>{
-                    setView("pedidos")
-                    getPedidos()
-                  }
-                }/>
-              </div>
-            </div>
+  const item = (activo) => "header-item" + (activo ? " activo" : "")
 
-          </div>
-          <div className="col-5 d-flex header-justify-content-end align-items-center">
-            {auth(1)?<span className={"btn m-1 text-success"} onClick={() => setView("configuracion")}><i className="fa fa-cogs"></i></span>:null}
-            
-            <div onClick={getip}>
-              <span className="fw-bold">{user.nombre}</span><br/>
-              <span className="fst-italic">{user.usuario} ({user.role})</span>
-            </div>
-            <span className="m-1 btn text-danger" onClick={logout}><i className="fa fa-times"></i></span>
-          </div>
+  return (
+    <header className="header-bar bg-sinapsis mb-2 container">
+      <div className="d-flex align-items-center flex-nowrap">
+
+        <img src={logo} alt="sinapsis" className="header-logo" />
+        <span className="header-sucursal" title={user.sucursal}>{user.sucursal}</span>
+        <span className="header-sep"></span>
+
+        {auth(3)?<span className={item(view=="ventas")} onClick={()=>{ setView("ventas"); getVentasClick() }}>Ventas</span>:null}
+        {auth(3)?<span className={item(view=="seleccionar")} onClick={()=>setView("seleccionar")}>Facturar</span>:null}
+
+        {auth(2)?<div className="dropdown">
+          <span className={item(toggleClientesBtn)+" dropdown-toggle"} onClick={()=>settoggleClientesBtn(!toggleClientesBtn)}>
+            Clientes
+          </span>
+          <ul className={("dropdown-menu ")+(toggleClientesBtn?"show":null)} onMouseLeave={()=>settoggleClientesBtn(false)}>
+            <li>
+              <span className="dropdown-item pointer" onClick={()=>{ setView("vueltos"); settoggleClientesBtn(false) }}>Vueltos</span>
+            </li>
+            <li>
+              <span className="dropdown-item pointer" onClick={()=>{ setView("credito"); settoggleClientesBtn(false) }}>Cuentas por cobrar</span>
+            </li>
+            <li>
+              <span className="dropdown-item pointer" onClick={()=>{ setView("clientes_crud"); settoggleClientesBtn(false) }}>Administrar Clientes</span>
+            </li>
+          </ul>
+        </div>:null}
+
+        <span className={item(view=="cierres")} onClick={()=>setView("cierres")}>Cierre</span>
+
+        {auth(2)&&view=="seleccionar"?
+          <span className={item(showModalMovimientos)} onClick={()=>setView("devoluciones")} title="Devoluciones / Garantías">Devol. / Gar.</span>
+        :null}
+        {auth(1)?<span className={item(view=="tareas")} onClick={()=>setView("tareas")}>Tareas</span>:null}
+        {auth(1)?<span className={item(view=="inventario")} onClick={()=>setView("inventario")}>Administración</span>:null}
+
+        <span className="header-sep"></span>
+
+        <small className="header-tasa" onClick={setMoneda} data-type="1" title="Cambiar tasa USD">USD {dolar}</small>
+        <small className="header-tasa" onClick={setMoneda} data-type="2" title="Cambiar tasa COP">COP {peso}</small>
+
+        <div className="header-derecha">
+          <img src={carrito} alt="Pedidos" title="Pedidos"
+            className="header-carrito pointer"
+            onClick={()=>{ setView("pedidos"); getPedidos() }}/>
+          <span className="header-sep"></span>
+          {auth(1)?<span className="header-icon" title="Configuración" onClick={()=>setView("configuracion")}><i className="fa fa-cogs"></i></span>:null}
+          <span className="header-user pointer" onClick={getip} title={user.nombre+" - "+user.usuario+" ("+user.role+")"}>
+            <b>{user.usuario}</b> <i className="fst-italic">({user.role})</i>
+          </span>
+          <span className="header-icon text-danger" title="Salir" onClick={logout}><i className="fa fa-times"></i></span>
         </div>
-      </div>
-      <div className="bg-sinapsis container-fluid">
-        <div className="row">
-          <div className="col d-flex header-justify-content-end">
-            
-            {auth(3)?<span className={(view == "ventas" ? "btn btn-dark" : null) + (" p-3 pointer")} onClick={() => { setView("ventas"); getVentasClick()}}>Ventas</span>:null}
 
-              {auth(3) ? <span className={(view == "seleccionar" ? "btn btn-dark" : null) + (" p-3 pointer")} onClick={() => setView("seleccionar")}>Facturar</span> : null}
-
-            {auth(2)?<div className="dropdown btn">
-              <button className={(toggleClientesBtn ? "btn btn-dark" : null)+(" btn dropdown-toggle text-light")} type="button" onClick={() => settoggleClientesBtn(!toggleClientesBtn)}>
-                Clientes
-              </button>
-              <ul className={("dropdown-menu ")+ (toggleClientesBtn?"show":null)} onMouseLeave={()=>settoggleClientesBtn(false)}>
-                <li>
-                  <span className={(view == "vueltos" ? "btn btn-dark" : null) + (" p-3 pointer dropdown-item")} onClick={() => {setView("vueltos");settoggleClientesBtn(false)}}>Vueltos</span>
-                </li>
-                <li>
-                  <span className={(view=="credito"?"btn btn-dark":null)+(" p-3 pointer dropdown-item")} onClick={()=>{setView("credito");settoggleClientesBtn(false)}}>Cuentas por cobrar</span>
-                </li>
-                <li>
-                  <span className={(view == "clientes_crud" ? "btn btn-dark" : null) + (" p-3 pointer dropdown-item")} onClick={() => {setView("clientes_crud");settoggleClientesBtn(false)}}>Administrar Clientes</span>
-
-                </li>
-              </ul>
-            </div>:null}
-
-            <span className={(view=="cierres"?"btn btn-dark":null)+(" p-3 pointer")} onClick={()=>setView("cierres")}>Cierre</span>
-            
-            
-            <>
-              <small className="p-3 monto-header" onClick={setMoneda} data-type="1">USD {dolar} </small>
-              <small className="p-3 monto-header" onClick={setMoneda} data-type="2">COP {peso} </small>
-              
-            </>
-            
-            
-            
-          </div>
-          <div className="col-4 d-flex header-justify-content-end">
-
-            { 
-              auth(2)?
-                view=="seleccionar"?
-                <>
-                  {/* <span className={(viewCaja?"btn btn-sinapsis":null)+(" p-3 pointer")} onClick={()=>setViewCaja(!viewCaja)}>Caja</span> */}
-                  <span className={(showModalMovimientos?"btn btn-sinapsis":null)+(" p-3 pointer")} onClick={()=>setView("devoluciones")}>Devoluciones / Garantías</span>
-
-                </>:null
-              :null
-            }
-            {auth(1)?<span className={(view=="tareas"?"btn btn-dark":null)+(" p-3 pointer")} onClick={()=>setView("tareas")}>Tareas</span>:null}
-            {auth(1)?<span className={(view=="inventario"?"btn btn-dark":null)+(" p-3 pointer")} onClick={()=>setView("inventario")}>Administración</span>:null}
-            
-            
-              
-             
-          </div>
-        </div>
       </div>
     </header>
   )

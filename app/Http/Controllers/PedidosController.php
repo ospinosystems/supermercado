@@ -728,17 +728,23 @@ class PedidosController extends Controller
 
                 $subtotal_c_desc = $subtotal-$total_des;
                 
+                // El campo "iva" del producto decide si es exento o gravable.
+                // El precio guardado YA incluye el impuesto (el modulo fiscal
+                // divide entre 1+iva para mandar la base a la maquina), asi que
+                // aqui se desglosa hacia atras y el total no cambia.
                 if (!$iva_m) {
                     $exento += ($subtotal_c_desc);
                 }else{
-                    $gravable += ($subtotal_c_desc);
-                    $monto_iva += ($subtotal_c_desc)*$iva_m;
-                }
-                if (strpos($ivas,$iva_val)===false) {
-                    $ivas .= $iva_val."%,";
+                    $base_gravable = ($subtotal_c_desc)/(1+$iva_m);
+                    $gravable += $base_gravable;
+                    $monto_iva += ($subtotal_c_desc)-$base_gravable;
+
+                    if (strpos($ivas,$iva_val)===false) {
+                        $ivas .= $iva_val."%,";
+                    }
                 }
                 
-                $total_ped += ($subtotal_c_desc)+(($subtotal_c_desc)*$iva_m);
+                $total_ped += ($subtotal_c_desc);
 
                 $item->total_des = number_format($total_des,2,".",",");
                 $item->subtotal = number_format($subtotal,2,".",",");
@@ -757,7 +763,7 @@ class PedidosController extends Controller
 
             $pedido->exento = number_format($exento,"2");
             $pedido->gravable = number_format($gravable,"2");
-            $pedido->ivas = substr($ivas,0,-1);
+            $pedido->ivas = $ivas ? substr($ivas,0,-1) : "0%";
             $pedido->monto_iva = number_format($monto_iva,"2");
 
             $pedido->clean_total_des = $total_des_ped;

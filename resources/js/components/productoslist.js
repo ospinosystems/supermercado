@@ -13,34 +13,47 @@ function ProductosList({
   tbodyproductosref,
   selectProductoFast,
   moneda,
+  buscandoProductos,
 }) {
+
+  // Mientras llega la respuesta se dejan renglones fantasma en vez de vaciar
+  // la tabla: así la lista no salta ni parece que se borró.
+  const filasSkeleton = Array.from({length:8}).map((e,i)=>
+    <tr key={"sk"+i} className="fila-skeleton">
+      <td className="cell15"><span className="skeleton" style={{width:"80%"}}></span></td>
+      <td className="cell3"><span className="skeleton" style={{width:"60%"}}></span></td>
+      <td className="cell1"><span className="skeleton" style={{width:"100%"}}></span></td>
+      <td className="cell05"><span className="skeleton" style={{width:"70%"}}></span></td>
+      <td className="cell3"><span className="skeleton" style={{width:"90%"}}></span></td>
+    </tr>
+  )
 
   return (
     <>
-      <table className="tabla-facturacion">
+      <table className={"tabla-facturacion table table-striped text-center"+(buscandoProductos?" cargando-lista":"")}>
         <thead>
           <tr>
-            <th className="cell2 pointer" 
+            <th className="text-sinapsis cell15 pointer" 
             data-valor="codigo_proveedor" 
             onClick={clickSetOrderColumn}>Cod. 
               {orderColumn=="codigo_proveedor"?(<i className={orderBy=="desc"?"fa fa-arrow-up":"fa fa-arrow-down"}></i>):null}
             </th>
-            <th className="cell4 pointer" 
+            <th className="text-sinapsis cell4 pointer" 
             data-valor="descripcion" 
             onClick={clickSetOrderColumn}>Desc. 
               {orderColumn=="descripcion"?(<i className={orderBy=="desc"?"fa fa-arrow-up":"fa fa-arrow-down"}></i>):null}
             </th>
-            <th className="cell1 pointer" 
+            <th className="text-sinapsis cell1 pointer" 
             data-valor="cantidad" 
             onClick={clickSetOrderColumn}>Disp. 
               {orderColumn=="cantidad"?(<i className={orderBy=="desc"?"fa fa-arrow-up":"fa fa-arrow-down"}></i>):null}
             </th>
-            <th className="cell1 pointer" 
+            <th className="text-sinapsis cell05 pointer" 
             data-valor="unidad" 
             onClick={clickSetOrderColumn}>Unidad 
               {orderColumn=="unidad"?(<i className={orderBy=="desc"?"fa fa-arrow-up":"fa fa-arrow-down"}></i>):null}
             </th>
-            <th className="cell2 pointer" 
+            <th className="text-sinapsis cell3 pointer" 
             data-valor="precio" 
             onClick={clickSetOrderColumn}>Precio 
               {orderColumn=="precio"?(<i className={orderBy=="desc"?"fa fa-arrow-up":"fa fa-arrow-down"}></i>):null}
@@ -48,15 +61,16 @@ function ProductosList({
           </tr>
         </thead>
         <tbody ref={tbodyproductosref}>
+          {buscandoProductos&&(!productos||!productos.length)?filasSkeleton:null}
           {productos?productos.length?productos.map((e,i)=>
             
               <tr data-index={i} tabIndex="-1" className={(counterListProductos == i ?"bg-sinapsis-light":null)+(' tr-producto hover')} key={e.id}>
                 <td data-index={i} onClick={event=>{
                   if(!e.lotes.length)return addCarrito(event)
-                  }} className="pointer cell3">{e.codigo_barras}</td>
+                  }} className="pointer align-middle cell15 cod-producto">{e.codigo_barras}</td>
                 <td data-index={i} onClick={event=>{
                   if(!e.lotes.length)return addCarrito(event)
-                  }} className='pointer text-left pl-5 cell3'>
+                  }} className='pointer align-middle text-left pl-5 cell3'>
                   {e.descripcion}
                   <div>
                     <table className="table-sm mr-1 text-success">
@@ -77,17 +91,17 @@ function ProductosList({
                       </table> 
                   </div>
                 </td>
-                <td className="cell1">
+                <td className="align-middle cell1">
                 {auth(1)?
-                  <button /* onClick={selectProductoFast} */ data-id={e.id} data-val={e.codigo_barras} className='formShowProductos btn btn-sinapsis btn-sm w-50'>
+                  <button /* onClick={selectProductoFast} */ data-id={e.id} data-val={e.codigo_barras} className='formShowProductos btn btn-sinapsis btn-sm btn-disp'>
                   {e.lotes.length?e.lotes_ct:e.cantidad.replace(".00","")}
                     </button>         
-                  : <button className='formShowProductos btn btn-sinapsis btn-sm w-50'>
+                  : <button className='formShowProductos btn btn-sinapsis btn-sm btn-disp'>
                     {e.lotes.length ? e.lotes_ct : e.cantidad.replace(".00", "")}
                   </button>}
                 </td>
-                <td className="cell1">{e.unidad}</td>
-                <td className="cell2">
+                <td className="align-middle cell05 unidad-producto">{e.unidad}</td>
+                <td className="align-middle cell3 precio-producto">
                   <div className="container-fluid">
                     <div className="row">
                       <div className="col-5 m-0 p-0">

@@ -22,6 +22,8 @@ const db = {
   
   
   saveReplaceProducto: data=>axios.post(host+"saveReplaceProducto",data),
+  reportefiscal: data=>axios.post(host+"reportefiscal",data),
+  
   
   guardarCierre: data=>axios.post(host+"guardarCierre",data),
 

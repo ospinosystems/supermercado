@@ -268,7 +268,7 @@ function Inventario({
   setreplaceProducto,
   saveReplaceProducto,
   
-
+  reportefiscal
   
 }) {
   useEffect(()=>{
@@ -298,6 +298,11 @@ function Inventario({
               </>
               <button className={("btn ") + (subViewInventario=="fallas"?"btn-success":"btn-outline-success")} onClick={()=>setsubViewInventario("fallas")}>Fallas</button>
           </div>
+          <div className="btn-group">
+              <button className={("btn btn-outline-primary")} onClick={() => reportefiscal("x")}>REPORTE X</button>
+              <button className={("btn btn-outline-primary")} onClick={()=>reportefiscal("z")}>REPORTE Z</button> 
+          </div>
+
           <div className="btn-group">
               <button className={("btn ") + (subViewInventario == "gastos" ? "btn-success" : "btn-outline-success")} onClick={() => setsubViewInventario("gastos")}>Gastos</button>
               <button className={("btn ") + (subViewInventario=="estadisticas"?"btn-success":"btn-outline-success")} onClick={()=>setsubViewInventario("estadisticas")}>Estadísticas</button> 

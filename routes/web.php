@@ -246,6 +246,7 @@ Route::group(['middleware' => ['login']], function () {
 		Route::post('getTotalizarCierre', [CierresController::class,"getTotalizarCierre"]);
 
 		Route::post('printPrecios', [tickera::class,"precio"]);
+		Route::post('reportefiscal', [tickera::class,"reportefiscal"]);
 		
 		
 		Route::post('delMov', [MovimientosController::class,"delMov"]);
