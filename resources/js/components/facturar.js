@@ -2310,14 +2310,24 @@ export default function Facturar({ user, notificar, setLoading }) {
             presupuestocarrito,
         }).then((res) => {
             setLoading(false);
-            // La máquina fiscal responde con el texto crudo de Retorno.txt.
-            let msj = "Factura fiscal enviada...";
-            if (typeof res.data === "string" && res.data.trim()) {
+            let msj = "Factura fiscal impresa";
+            let ok = true;
+
+            if (res.data && typeof res.data === "object") {
+                msj = res.data.msj ? res.data.msj : msj;
+                ok = res.data.estado !== false;
+            } else if (typeof res.data === "string" && res.data.trim()) {
                 msj = res.data;
-            } else if (res.data && res.data.msj) {
-                msj = res.data.msj;
             }
-            notificar(msj);
+
+            // Un fallo fiscal no puede pasar desapercibido en la caja: el aviso
+            // se queda en pantalla y hay que confirmarlo.
+            if (!ok) {
+                notificar(msj, false);
+                alert(msj + "\n\nRevise la impresora fiscal antes de continuar.");
+            } else {
+                notificar(msj);
+            }
         });
     };
     const toggleImprimirTicket = (id_fake = null, fiscal = "no", pedidoFiscal = null) => {

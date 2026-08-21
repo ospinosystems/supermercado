@@ -426,13 +426,27 @@ class tickera extends Controller
                     "resultado" => $this->evaluarRetornoFiscal($retorno["ultima"], count($factura), $ejecucion["salida"]),
                 ]);
 
-                // Si Retorno.txt no llego a escribirse, al menos devolver lo que
-                // dijo la consola, para no reportar exito en falso.
-                if ($retorno["ultima"] !== "") {
-                    return $retorno["ultima"];
+                // El cajero tiene que enterarse si la factura NO salio: antes le
+                // llegaba el texto crudo del exe, o un "enviada" en falso.
+                $datos = $this->parsearSalidaFiscal($ejecucion["salida"]);
+                $lineasOk = $datos["retorno"] !== null && $datos["retorno"] >= count($factura);
+                $sinError = $datos["error"] === null || $datos["error"] === 0;
+
+                if ($lineasOk && $sinError) {
+                    return Response::json([
+                        "msj"    => "Factura fiscal impresa",
+                        "estado" => true,
+                    ]);
                 }
 
-                return trim((string) $ejecucion["salida"]);
+                $detalle = $datos["error"] !== null
+                    ? "Error ".$datos["error"].": ".$this->textoErrorFiscal($datos["error"])
+                    : "La impresora no respondió";
+
+                return Response::json([
+                    "msj"    => "¡NO se imprimió la factura fiscal! ".$detalle,
+                    "estado" => false,
+                ]);
 
             }else{
                 $connector = new WindowsPrintConnector($sucursal->tickera);
