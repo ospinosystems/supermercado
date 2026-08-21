@@ -22,6 +22,77 @@ class tickera extends Controller
     const LARGO_DESC_FISCAL = 34;
 
     /**
+     * Tabla del ANEXO 2 del manual de IntTfhka.
+     */
+    private function textoErrorFiscal($codigo)
+    {
+        $tabla = [
+            0   => "No hay error",
+            1   => "Fin en la entrega de papel",
+            2   => "Error mecánico en la entrega de papel",
+            3   => "Fin en la entrega de papel y error mecánico",
+            80  => "Comando o valor inválido",
+            84  => "Tasa inválida",
+            88  => "No hay asignadas directivas",
+            92  => "Comando inválido",
+            96  => "Error fiscal",
+            100 => "Error de la memoria fiscal",
+            108 => "Memoria fiscal llena",
+            112 => "Buffer completo (debe enviar el comando de reinicio)",
+            128 => "Error en la comunicación con la impresora",
+            137 => "No hay respuesta de la impresora",
+            144 => "Error LRC",
+            145 => "Error interno del api",
+            153 => "Error en la apertura del archivo",
+        ];
+
+        return isset($tabla[$codigo]) ? $tabla[$codigo] : "Código no documentado";
+    }
+
+    /**
+     * IntTFHKA.exe escribe en consola "Retorno: N  Status: X  Error: Y".
+     * Es más fiable que Retorno.txt, que sólo aparece si el exe pudo crearlo.
+     */
+    private function parsearSalidaFiscal($salida)
+    {
+        $datos = ["retorno" => null, "status" => null, "error" => null];
+
+        if (!is_string($salida)) {
+            return $datos;
+        }
+        $etiquetas = ["retorno" => "Retorno", "status" => "Status", "error" => "Error"];
+        foreach ($etiquetas as $clave => $etiqueta) {
+            if (preg_match("/".$etiqueta."\s*:\s*(-?\d+)/i", $salida, $m)) {
+                $datos[$clave] = (int) $m[1];
+            }
+        }
+
+        return $datos;
+    }
+
+    /**
+     * El exe del SDK resuelve Puerto.dat y Retorno.txt contra su directorio de
+     * trabajo, no contra su propia ubicación. Lanzado desde la raíz de Laravel
+     * no encontraba Puerto.dat, así que no sabía a qué puerto hablar (error 128,
+     * sin comunicación) y dejaba Retorno.txt en otra carpeta. Por eso se ejecuta
+     * parado dentro de C:/IntTFHKA, igual que hace el SDK.
+     */
+    private function ejecutarIntTfhka($argumento)
+    {
+        $carpeta = str_replace("/", DIRECTORY_SEPARATOR, self::RUTA_INTTFHKA);
+
+        // Un Retorno.txt viejo se leería como si fuera la respuesta de ahora.
+        $retorno = self::RUTA_INTTFHKA."/Retorno.txt";
+        if (is_file($retorno)) {
+            @unlink($retorno);
+        }
+
+        $sentencia = 'cd /d "'.$carpeta.'" && IntTFHKA.exe '.$argumento;
+
+        return ["sentencia" => $sentencia, "salida" => shell_exec($sentencia)];
+    }
+
+    /**
      * Lee Retorno.txt sin reventar si el archivo no existe (la impresora
      * apagada o el .exe que nunca llegó a escribirlo).
      * Devuelve el contenido completo para el log y la última línea, que es
@@ -56,9 +127,21 @@ class tickera extends Controller
      * Interpreta la respuesta de SendFileCmd, que devuelve cuántas líneas del
      * lote procesó la impresora.
      */
-    private function evaluarRetornoFiscal($respuesta, $lineasEnviadas = null)
+    private function evaluarRetornoFiscal($respuesta, $lineasEnviadas = null, $salida = null)
     {
-        $respuesta = trim($respuesta);
+        // La consola del exe manda: trae el código de error del ANEXO 2.
+        $datos = $this->parsearSalidaFiscal($salida);
+        if ($datos["error"] !== null && $datos["error"] !== 0) {
+            return "ERROR ".$datos["error"]." - ".$this->textoErrorFiscal($datos["error"]);
+        }
+        if ($datos["retorno"] !== null && $lineasEnviadas !== null) {
+            if ($datos["retorno"] >= $lineasEnviadas) {
+                return "OK - procesó ".$datos["retorno"]." de ".$lineasEnviadas." líneas";
+            }
+            return "INCOMPLETO - procesó ".$datos["retorno"]." de ".$lineasEnviadas." líneas";
+        }
+
+        $respuesta = trim((string) $respuesta);
 
         if ($respuesta === "") {
             return "SIN RESPUESTA - revisar conexión/encendido de la impresora fiscal";
@@ -163,9 +246,7 @@ class tickera extends Controller
             return Response::json(["msj"=>"Error: tipo de reporte inválido","estado"=>false]);
         }
 
-        $sentencia = self::RUTA_INTTFHKA."/IntTFHKA.exe SendCmd(".$cmd;
-
-        $salida = shell_exec($sentencia);
+        $ejecucion = $this->ejecutarIntTfhka("SendCmd(".$cmd);
 
         $retorno = $this->leerRetornoFiscal();
 
@@ -173,10 +254,10 @@ class tickera extends Controller
             "operacion" => "REPORTE ".strtoupper($type),
             "contexto"  => ["comando" => $cmd],
             "comando"   => $cmd,
-            "sentencia" => $sentencia,
-            "salida"    => $salida,
+            "sentencia" => $ejecucion["sentencia"],
+            "salida"    => $ejecucion["salida"],
             "respuesta" => $retorno["completo"],
-            "resultado" => $this->evaluarRetornoFiscal($retorno["ultima"]),
+            "resultado" => $this->evaluarRetornoFiscal($retorno["ultima"], null, $ejecucion["salida"]),
         ]);
 
         return $retorno["ultima"];
@@ -324,9 +405,7 @@ class tickera extends Controller
                 }
 
                 fclose($fp);
-                $sentencia = self::RUTA_INTTFHKA."/IntTFHKA.exe SendFileCmd(".$file;
-
-                $salida = shell_exec($sentencia);
+                $ejecucion = $this->ejecutarIntTfhka("SendFileCmd(".$file);
 
                 $retorno = $this->leerRetornoFiscal();
 
@@ -341,13 +420,19 @@ class tickera extends Controller
                         "archivo"        => $file,
                     ],
                     "comando"   => $contenidoLote,
-                    "sentencia" => $sentencia,
-                    "salida"    => $salida,
+                    "sentencia" => $ejecucion["sentencia"],
+                    "salida"    => $ejecucion["salida"],
                     "respuesta" => $retorno["completo"],
-                    "resultado" => $this->evaluarRetornoFiscal($retorno["ultima"], count($factura)),
+                    "resultado" => $this->evaluarRetornoFiscal($retorno["ultima"], count($factura), $ejecucion["salida"]),
                 ]);
 
-                return $retorno["ultima"];
+                // Si Retorno.txt no llego a escribirse, al menos devolver lo que
+                // dijo la consola, para no reportar exito en falso.
+                if ($retorno["ultima"] !== "") {
+                    return $retorno["ultima"];
+                }
+
+                return trim((string) $ejecucion["salida"]);
 
             }else{
                 $connector = new WindowsPrintConnector($sucursal->tickera);
