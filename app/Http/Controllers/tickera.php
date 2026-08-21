@@ -19,6 +19,7 @@ use Response;
 class tickera extends Controller
 {
     const RUTA_INTTFHKA = "C:/IntTFHKA";
+    const LARGO_DESC_FISCAL = 34;
 
     /**
      * Lee Retorno.txt sin reventar si el archivo no existe (la impresora
@@ -258,7 +259,13 @@ class tickera extends Controller
                 }
 
                 foreach ($pedido->items as $val) {
-    
+
+                    // Los renglones de abono/movimiento no traen producto: si se
+                    // cuelan aqui revientan el lote y la factura queda abierta.
+                    if (!$val->producto) {
+                        continue;
+                    }
+
                     $items[] = [
                         'descripcion' => $val->producto->descripcion,
                         'codigo_barras' => $val->producto->codigo_barras,
@@ -268,10 +275,20 @@ class tickera extends Controller
                        
                     ];
 
+                    // El descuento del renglon se aplica al precio unitario.
+                    // Antes se mandaba como un numero suelto en su propia linea,
+                    // que no es un comando valido, y de quitarlo sin mas la
+                    // fiscal cobraria el precio sin rebajar.
+                    $precioUnitario = floatval($val->producto->precio);
+                    $descuentoRenglon = floatval($val->descuento);
+                    if ($descuentoRenglon) {
+                        $precioUnitario = $precioUnitario * (1 - ($descuentoRenglon/100));
+                    }
+
                     // La base imponible sale de la tasa del propio producto,
                     // no de un 16% fijo: el precio guardado ya trae el impuesto.
                     $ivaProducto = floatval($val->producto->iva);
-                    $precioFull = $ivaProducto!=0?($val->producto->precio)/(1+($ivaProducto/100)):$val->producto->precio;
+                    $precioFull = $ivaProducto!=0?$precioUnitario/(1+($ivaProducto/100)):$precioUnitario;
                     if (str_contains($req->fiscal,"devolucion")) {
                         $exentogravable = $val->producto->iva!=0?"d1":"d0";
                         
@@ -282,13 +299,16 @@ class tickera extends Controller
                     
                     $precio = str_pad(number_format($precioFull, 1, '', ''), 9, '0', STR_PAD_LEFT);
                     $ct = str_pad(number_format($val->cantidad, 3, '', ''), 9, '0', STR_PAD_LEFT);
-                    $desc = $val->producto->descripcion;
-                    
-                    
-                    array_push($factura,$exentogravable.$precio."$ct".$desc."\n");
-                    if ($val->descuento) {
-                        array_push($factura, number_format($val->descuento, 2, '', '')."\n");
+                    // La descripcion viaja dentro del comando: una enye, un
+                    // acento o un renglon demasiado largo hacen que la impresora
+                    // rechace la linea y aborte el resto del lote.
+                    $desc = $this->limpiarCampoFiscal($val->producto->descripcion, self::LARGO_DESC_FISCAL);
+                    if ($desc === "") {
+                        $desc = "PRODUCTO ".$val->producto->id;
                     }
+
+                    array_push($factura,$exentogravable.$precio."$ct".$desc."\n");
+
                 }
                 array_push($factura,"101");
 
@@ -349,6 +369,7 @@ class tickera extends Controller
     
                         foreach ($pedido->items as $val) {
     
+                            if (!$val->producto) { continue; }
                             $items[] = [
                                 'descripcion' => $val->producto->descripcion,
                                 'codigo_barras' => $val->producto->codigo_barras,
@@ -447,6 +468,7 @@ class tickera extends Controller
     
                         foreach ($pedido->items as $val) {
     
+                            if (!$val->producto) { continue; }
                             $items[] = [
                                 'descripcion' => $val->producto->descripcion,
                                 'pu' => $val->producto->precio,
