@@ -395,7 +395,12 @@ class tickera extends Controller
 
                 $contenidoLote = implode("", $factura);
 
-                $file = self::RUTA_INTTFHKA."/Factura.txt";
+                // PHP escribe con la ruta completa, pero al exe se le pasa el
+                // nombre a secas: con la ruta absoluta devuelve error 128 aunque
+                // CheckFprinter() responda TRUE. El demo del SDK tambien la
+                // pasa relativa, apoyandose en el directorio de trabajo.
+                $archivoLote = "Factura.txt";
+                $file = self::RUTA_INTTFHKA."/".$archivoLote;
                 $fp = fopen($file, "w+");
                 $write = fputs($fp, "");
 
@@ -405,7 +410,7 @@ class tickera extends Controller
                 }
 
                 fclose($fp);
-                $ejecucion = $this->ejecutarIntTfhka("SendFileCmd(".$file);
+                $ejecucion = $this->ejecutarIntTfhka("SendFileCmd(".$archivoLote);
 
                 $retorno = $this->leerRetornoFiscal();
 
