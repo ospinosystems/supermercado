@@ -1386,6 +1386,29 @@ export default function Facturar({ user, notificar, setLoading }) {
         ]
     );
 
+    useHotkeys(
+        "ctrl+f",
+        (event) => {
+            if (view == "pagar" && !ModaladdproductocarritoToggle && !toggleAddPersona) {
+                // Sin esto el navegador abre su propio buscador.
+                event.preventDefault();
+                setimprimirFiscal((activo) => {
+                    notificar(
+                        activo
+                            ? "Recibo fiscal DESACTIVADO: al guardar sale la nota de entrega"
+                            : "Recibo fiscal ACTIVADO: al guardar sale la factura fiscal"
+                    );
+                    return !activo;
+                });
+            }
+        },
+        {
+            filterPreventDefault: false,
+            enableOnTags: ["INPUT", "SELECT", "TEXTAREA"],
+        },
+        [view, ModaladdproductocarritoToggle, toggleAddPersona]
+    );
+
     useEffect(() => {
         if (showinputaddCarritoFast) {
             if (inputbusquedaProductosref) {

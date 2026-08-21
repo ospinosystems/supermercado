@@ -901,8 +901,8 @@ const syncPago = (val,type)=>{
                     onMouseDown={evitarFoco}
                     className={"btn btn-accion "+(imprimirFiscal?"btn-warning":"btn-outline-secondary")}
                     onClick={()=>setimprimirFiscal(!imprimirFiscal)}
-                    title="Activo: al guardar la factura sale la factura fiscal en lugar de la nota de entrega.">
-                    Recibo <span className="tecla">({imprimirFiscal?"activo":"apagado"})</span>
+                    title="CTRL+F. Activo: al guardar la factura sale la factura fiscal en lugar de la nota de entrega.">
+                    Recibo <span className="tecla">(CTRL+F · {imprimirFiscal?"activo":"apagado"})</span>
                   </button>
                 :null}
                 {editable?
